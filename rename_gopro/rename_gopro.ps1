@@ -19,15 +19,33 @@ if ($folderDialog.ShowDialog() -eq "OK") {
     $targetFolder = $folderDialog.SelectedPath
     Write-Host "`nTarget folder: $targetFolder`n"
 
-    # Rename GH0*.mp4 files based on LastWriteTime
+    # Delete .THM and .LRV files (case-insensitive)
+    Get-ChildItem -Path $targetFolder | Where-Object {
+        $_.Extension.ToLower() -in @(".thm", ".lrv")
+    } | ForEach-Object {
+        Write-Host "Deleted: $($_.Name)"
+        Remove-Item -Path $_.FullName -Force
+    }
+
+    # Rename GH0*.mp4 or GH0*.MP4 files with per-date reset counter
+    $lastDate = ""
     $counter = 1
-    Get-ChildItem -Path $targetFolder -Filter "GH0*.mp4" | Sort-Object LastWriteTime | ForEach-Object {
-        $newName = "{0}_v_{1:000}.mp4" -f $prefix, $counter
+    Get-ChildItem -Path $targetFolder | Where-Object {
+        $_.Name -like "GH0*" -and $_.Extension.ToLower() -eq ".mp4"
+    } | Sort-Object LastWriteTime | ForEach-Object {
+        $date = $_.LastWriteTime.ToString("yyyy-MM-dd")
+        if ($date -ne $lastDate) {
+            $counter = 1
+            $lastDate = $date
+        }
+        $newName = "{0}_{1}_{2:000}.mp4" -f $prefix, $date, $counter
         $newPath = Join-Path $targetFolder $newName
-        Rename-Item $_.FullName -NewName $newPath
-        Write-Host "Renamed: $($_.Name) → $newName"
+        Write-Host "Renamed: $($_.Name) -> $newName"
+        Rename-Item -Path $_.FullName -NewName $newPath
         $counter++
     }
+
+    Write-Host "Renaming completed."
 } else {
     Write-Host "Folder selection cancelled."
 }
